@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Avvik Dashboard — Oslo Taxi TT</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    background: #F4F6F9;
+    color: #1a1a2e;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* ── Nav ── */
+  nav {
+    background: #1a2d4a;
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .nav-logo { color: #fff; font-size: 15px; font-weight: 600; letter-spacing: .01em; }
+  .nav-logo span { color: #5ba3f5; }
+  .nav-right { display: flex; align-items: center; gap: 12px; }
+  .month-select-wrap { display: flex; align-items: center; gap: 8px; }
+  .month-select-wrap label { color: #8faac8; font-size: 12px; }
+  #monthSelect {
+    background: #243a56;
+    color: #fff;
+    border: 1px solid #3a5070;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+  }
+  #monthSelect:focus { border-color: #5ba3f5; }
+  .nav-badge {
+    background: #5ba3f5;
+    color: #fff;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+
+  /* ── Layout ── */
+  main { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+  .page-title { font-size: 22px; font-weight: 700; color: #1a2d4a; margin-bottom: 4px; }
+  .page-sub { font-size: 13px; color: #7a8a9a; margin-bottom: 1.5rem; }
+
+  /* ── KPI cards ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+  .kpi {
+    background: #fff;
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    border-left: 4px solid #5ba3f5;
+  }
+  .kpi.amber { border-left-color: #f0a500; }
+  .kpi.gray  { border-left-color: #6c7a8a; }
+  .kpi.green { border-left-color: #27ae60; }
+  .kpi-label { font-size: 11px; color: #7a8a9a; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  .kpi-val   { font-size: 28px; font-weight: 700; color: #1a2d4a; line-height: 1; }
+  .kpi-sub   { font-size: 11px; color: #aaa; margin-top: 4px; }
+
+  /* ── Two-column layout ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ── Cards ── */
+  .card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 1.25rem;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a2d4a;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .card-title::before {
+    content: '';
+    display: inline-block;
+    width: 3px;
+    height: 14px;
+    background: #5ba3f5;
+    border-radius: 2px;
+  }
+
+  /* ── Bar list ── */
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background .15s;
+    margin-bottom: 3px;
+  }
+  .bar-row:hover { background: #f0f4fa; }
+  .bar-row.active { background: #e8f0fb; outline: 1.5px solid #5ba3f5; }
+  .bar-vognlop { width: 64px; font-size: 12px; font-weight: 600; color: #1a2d4a; flex-shrink: 0; }
+  .bar-track { flex: 1; height: 18px; background: #f0f4fa; border-radius: 4px; overflow: hidden; }
+  .bar-inner { height: 100%; display: flex; }
+  .bar-t { background: #5ba3f5; }
+  .bar-m { background: #f0a500; }
+  .bar-num { width: 24px; text-align: right; font-size: 12px; font-weight: 700; color: #1a2d4a; flex-shrink: 0; }
+
+  /* ── Detail pane ── */
+  .detail-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: #aaa;
+    font-size: 13px;
+    gap: 8px;
+  }
+  .detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .detail-vognlop { font-size: 18px; font-weight: 700; color: #1a2d4a; }
+  .detail-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .badge-blue { background: #e8f0fb; color: #1a5ca8; }
+  .badge-amber { background: #fef3dc; color: #7a5000; }
+  .detail-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .meta-block { background: #f8f9fb; border-radius: 6px; padding: 8px 10px; }
+  .meta-label { font-size: 10px; color: #aaa; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+  .meta-val { font-size: 13px; font-weight: 600; color: #1a2d4a; }
+  .week-chart-wrap { margin-bottom: 10px; }
+  .week-chart-label { font-size: 10px; color: #aaa; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+  .week-bars { display: flex; gap: 6px; align-items: flex-end; height: 60px; }
+  .week-col { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; }
+  .week-bar-fill { width: 100%; background: #5ba3f5; border-radius: 3px 3px 0 0; min-height: 2px; transition: height .3s; }
+  .week-bar-fill.zero { background: #e8eef5; }
+  .week-bar-cnt { font-size: 10px; font-weight: 600; color: #1a2d4a; }
+  .week-bar-lbl { font-size: 10px; color: #aaa; }
+  .bookings-label { font-size: 10px; color: #aaa; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; margin-top: 8px; }
+  .bookings-list { font-size: 11px; color: #6a7a8a; line-height: 1.8; word-break: break-all; }
+
+  /* ── Full table ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th {
+    background: #1a2d4a;
+    color: #fff;
+    padding: 8px 10px;
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+  }
+  td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; color: #1a2d4a; white-space: nowrap; }
+  tr:nth-child(even) td { background: #f8f9fb; }
+  tr:hover td { background: #eef4fd; }
+  .rank-cell { font-weight: 700; color: #5ba3f5; text-align: center; }
+  .total-cell { font-weight: 700; color: #1a2d4a; text-align: center; }
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .pill-blue { background: #e8f0fb; color: #1a5ca8; }
+  .pill-amber { background: #fef3dc; color: #7a5000; }
+  .week-cell { text-align: center; }
+  .week-dot {
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 22px;
+    text-align: center;
+  }
+
+  /* ── Search / filter ── */
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+  .search-wrap { position: relative; flex: 1; min-width: 160px; }
+  .search-wrap input {
+    width: 100%;
+    padding: 8px 12px 8px 34px;
+    border: 1px solid #dde3ea;
+    border-radius: 6px;
+    font-size: 13px;
+    outline: none;
+    background: #fff;
+  }
+  .search-wrap input:focus { border-color: #5ba3f5; }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #aaa; font-size: 14px; }
+  .filter-btn {
+    padding: 8px 14px;
+    border: 1px solid #dde3ea;
+    border-radius: 6px;
+    background: #fff;
+    font-size: 12px;
+    cursor: pointer;
+    color: #1a2d4a;
+    font-weight: 500;
+    transition: background .15s;
+  }
+  .filter-btn:hover { background: #f0f4fa; }
+  .filter-btn.active { background: #e8f0fb; border-color: #5ba3f5; color: #1a5ca8; }
+  .result-count { font-size: 12px; color: #aaa; }
+
+  /* ── Legend ── */
+  .legend { display: flex; gap: 16px; margin-bottom: 12px; font-size: 12px; color: #6a7a8a; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 5px; }
+
+  /* ── Loading ── */
+  #loading {
+    position: fixed; inset: 0; background: #F4F6F9;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 999; gap: 16px;
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid #dde3ea;
+    border-top-color: #5ba3f5;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading p { color: #7a8a9a; font-size: 13px; }
+
+  footer {
+    text-align: center;
+    padding: 2rem;
+    font-size: 11px;
+    color: #aaa;
+    margin-top: 2rem;
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div style="font-size:20px;font-weight:700;color:#1a2d4a;">Oslo Taxi TT</div>
+  <div class="spinner"></div>
+  <p>Laster avvikdata…</p>
+</div>
+
+<nav>
+  <div class="nav-logo">Oslo Taxi <span>TT Avvik</span></div>
+  <div class="nav-right">
+    <div class="month-select-wrap">
+      <label>Måned</label>
+      <select id="monthSelect"></select>
+    </div>
+    <div class="nav-badge" id="navBadge">–</div>
+  </div>
+</nav>
+
+<main id="mainContent" style="display:none">
+  <div class="page-title" id="pageTitle">Avvik — Oslo Taxi TT</div>
+  <div class="page-sub" id="pageSub">Trykkefeil-analyse · Gjengangere per vognløp</div>
+
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-label">Totalt avvik</div><div class="kpi-val" id="kpiTotalt">–</div><div class="kpi-sub">Trykkefeil + mangler</div></div>
+    <div class="kpi"><div class="kpi-label">Trykkefeil</div><div class="kpi-val" id="kpiTrykkefeil">–</div><div class="kpi-sub" id="kpiTrykkepct">–</div></div>
+    <div class="kpi amber"><div class="kpi-label">Mangler trykketid</div><div class="kpi-val" id="kpiMangler">–</div><div class="kpi-sub" id="kpiManglerpct">–</div></div>
+    <div class="kpi gray"><div class="kpi-label">Unike vognløp</div><div class="kpi-val" id="kpiVognlop">–</div><div class="kpi-sub">Med avvik denne måneden</div></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Avvik per uke</div>
+      <div style="position:relative;height:180px;">
+        <canvas id="weekChart" role="img" aria-label="Avvik per uke"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Topp vognløp</div>
+      <div class="legend">
+        <span><span class="legend-dot" style="background:#5ba3f5"></span>Trykkefeil</span>
+        <span><span class="legend-dot" style="background:#f0a500"></span>Mangler trykketid</span>
+      </div>
+      <div id="barList" style="max-height:280px;overflow-y:auto;"></div>
+    </div>
+  </div>
+
+  <div class="card" id="detailCard" style="margin-bottom:1.5rem;">
+    <div class="card-title">Vognløp detaljer</div>
+    <div id="detailPane">
+      <div class="detail-empty">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Klikk på et vognløp i listen over for å se detaljer
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Alle vognløp med avvik</div>
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="Søk vognløp…" oninput="filterTable()">
+      </div>
+      <button class="filter-btn active" id="filterAll" onclick="setFilter('all')">Alle</button>
+      <button class="filter-btn" id="filterT" onclick="setFilter('trykkefeil')">Bare trykkefeil</button>
+      <button class="filter-btn" id="filterM" onclick="setFilter('mangler')">Bare mangler</button>
+      <span class="result-count" id="resultCount"></span>
+    </div>
+    <div class="table-wrap">
+      <table id="mainTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Vognløp</th>
+            <th>Totalt</th>
+            <th>Trykkefeil</th>
+            <th>Mangler</th>
+            <th style="cursor:pointer" onclick="sortTable()">% ↕</th>
+            <th id="weekHeaders"></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<footer>Oslo Taxi TT · Avvik Dashboard · Data oppdateres automatisk av UiPath-robot</footer>
+
+<script>
+// ── CONFIG: legg til nye måneder her ──────────────────────────────────
+// UiPath-roboten legger til en ny linje per måned den behandler.
+// Formatet er: { id: "YYYY-MM", label: "Måned År", file: "data_YYYY_MM.json" }
+const MONTHS = [
+  { id: "2026-04", label: "April 2026",   file: "data_2026_04.json" },
+  // { id: "2026-05", label: "Mai 2026",     file: "data_2026_05.json" },
+  // { id: "2026-06", label: "Juni 2026",    file: "data_2026_06.json" },
+];
+// ──────────────────────────────────────────────────────────────────────
+
+let currentData = null;
+let weekChart = null;
+let allWeeks = [];
+let activeFilter = 'all';
+let selectedVognlop = null;
+
+function init() {
+  const sel = document.getElementById('monthSelect');
+  MONTHS.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.file;
+    opt.textContent = m.label;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', () => loadMonth(sel.value));
+  if (MONTHS.length > 0) loadMonth(MONTHS[MONTHS.length - 1].file);
+}
+
+async function loadMonth(file) {
+  document.getElementById('loading').style.display = 'flex';
+  document.getElementById('mainContent').style.display = 'none';
+  try {
+    const res = await fetch(file);
+    if (!res.ok) throw new Error('Finner ikke ' + file);
+    currentData = await res.json();
+    allWeeks = currentData.weekly.map(w => 'U' + w.uke);
+    renderAll();
+    document.getElementById('mainContent').style.display = 'block';
+  } catch(e) {
+    alert('Kunne ikke laste data: ' + e.message);
+  }
+  document.getElementById('loading').style.display = 'none';
+}
+
+function renderAll() {
+  const d = currentData;
+  document.getElementById('pageTitle').textContent = 'Avvik — ' + d.maaned;
+  document.getElementById('pageSub').textContent = 'Trykkefeil-analyse · Gjengangere per vognløp';
+  document.getElementById('navBadge').textContent = d.maaned;
+  document.getElementById('kpiTotalt').textContent = d.totalt;
+  document.getElementById('kpiTrykkefeil').textContent = d.trykkefeil;
+  document.getElementById('kpiTrykkepct').textContent = Math.round(d.trykkefeil / d.totalt * 100) + '% av avvik';
+  document.getElementById('kpiMangler').textContent = d.mangler;
+  document.getElementById('kpiManglerpct').textContent = Math.round(d.mangler / d.totalt * 100) + '% av avvik';
+  document.getElementById('kpiVognlop').textContent = d.unike_vognlop;
+
+  // Week chart
+  if (weekChart) weekChart.destroy();
+  weekChart = new Chart(document.getElementById('weekChart'), {
+    type: 'bar',
+    data: {
+      labels: d.weekly.map(w => 'Uke ' + w.uke),
+      datasets: [{ data: d.weekly.map(w => w.antall), backgroundColor: '#5ba3f5', borderRadius: 4 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { autoSkip: false } },
+        y: { grid: { color: 'rgba(0,0,0,.05)' } }
+      }
+    }
+  });
+
+  renderBarList();
+  renderTable();
+  selectedVognlop = null;
+  document.getElementById('detailPane').innerHTML = '<div class="detail-empty"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Klikk på et vognløp i listen over for å se detaljer</div>';
+}
+
+function renderBarList() {
+  const MAX = currentData.vognlop[0].total;
+  const top = currentData.vognlop.slice(0, 20);
+  const container = document.getElementById('barList');
+  container.innerHTML = '';
+  top.forEach((v, i) => {
+    const tPct = (v.trykkefeil / MAX * 100).toFixed(1);
+    const mPct = (v.mangler / MAX * 100).toFixed(1);
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.id = 'brow_' + i;
+    row.innerHTML = `
+      <span class="bar-vognlop">${v.vognlop}</span>
+      <span class="bar-track">
+        <span class="bar-inner" style="width:${(v.total/MAX*100).toFixed(1)}%">
+          <span class="bar-t" style="flex:${v.trykkefeil||0}"></span>
+          <span class="bar-m" style="flex:${v.mangler||0}"></span>
+        </span>
+      </span>
+      <span class="bar-num">${v.total}</span>`;
+    row.addEventListener('click', () => showDetail(v, i));
+    container.appendChild(row);
+  });
+}
+
+function showDetail(v, idx) {
+  document.querySelectorAll('.bar-row').forEach(r => r.classList.remove('active'));
+  const brow = document.getElementById('brow_' + idx);
+  if (brow) brow.classList.add('active');
+  selectedVognlop = v.vognlop;
+
+  const maxW = Math.max(...Object.values(v.per_uke).map(Number), 1);
+  const ukes = [14,15,16,17,18];
+  const weekBars = ukes.map(u => {
+    const cnt = v.per_uke[String(u)] || 0;
+    const h = cnt ? Math.round(cnt / maxW * 52) : 2;
+    return `<div class="week-col">
+      <div class="week-bar-cnt">${cnt || ''}</div>
+      <div class="week-bar-fill${cnt ? '' : ' zero'}" style="height:${h}px"></div>
+      <div class="week-bar-lbl">U${u}</div>
+    </div>`;
+  }).join('');
+
+  const lastUke = v.uker[v.uker.length-1];
+  const firstUke = v.uker[0];
+  const lastCnt = v.per_uke[String(lastUke)] || 0;
+  const firstCnt = v.per_uke[String(firstUke)] || 0;
+  const trend = v.uker.length < 2 ? '–' : lastCnt > firstCnt ? '↑ Stigende' : lastCnt < firstCnt ? '↓ Avtagende' : '→ Stabil';
+  const trendColor = trend.includes('↑') ? '#c0392b' : trend.includes('↓') ? '#27ae60' : '#7a8a9a';
+
+  document.getElementById('detailPane').innerHTML = `
+    <div class="detail-header">
+      <div class="detail-vognlop">${v.vognlop}</div>
+      <div class="detail-badges">
+        ${v.trykkefeil ? `<span class="badge badge-blue">${v.trykkefeil} trykkefeil</span>` : ''}
+        ${v.mangler ? `<span class="badge badge-amber">${v.mangler} mangler trykketid</span>` : ''}
+      </div>
+    </div>
+    <div class="detail-meta">
+      <div class="meta-block"><div class="meta-label">Totalt avvik</div><div class="meta-val" style="font-size:20px">${v.total}</div></div>
+      <div class="meta-block"><div class="meta-label">Trend</div><div class="meta-val" style="color:${trendColor}">${trend}</div></div>
+      <div class="meta-block"><div class="meta-label">Aktive uker</div><div class="meta-val">Uke ${v.uker.join(', ')}</div></div>
+      <div class="meta-block"><div class="meta-label">Antall bookinger</div><div class="meta-val">${v.bookings.length}</div></div>
+    </div>
+    <div class="week-chart-wrap">
+      <div class="week-chart-label">Avvik per uke</div>
+      <div class="week-bars">${weekBars}</div>
+    </div>
+    <div class="bookings-label">Booking-IDer</div>
+    <div class="bookings-list">${v.bookings.join(', ')}</div>`;
+}
+
+let sortAsc = true;
+function sortTable() {
+  currentData.vognlop.sort((a,b) => sortAsc
+    ? (a.trykkefeil/a.total) - (b.trykkefeil/b.total)
+    : (b.trykkefeil/b.total) - (a.trykkefeil/a.total));
+  sortAsc = !sortAsc;
+  renderTable();
+}
+
+function setFilter(f) {
+  activeFilter = f;
+  ['all','trykkefeil','mangler'].forEach(id => {
+    document.getElementById('filter' + id.charAt(0).toUpperCase() + id.slice(1))?.classList.toggle('active', id === f);
+  });
+  renderTable();
+}
+
+function filterTable() { renderTable(); }
+
+function renderTable() {
+  const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  let rows = currentData.vognlop.filter(v => {
+    if (activeFilter === 'trykkefeil' && v.trykkefeil === 0) return false;
+    if (activeFilter === 'mangler' && v.mangler === 0) return false;
+    if (search && !v.vognlop.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  document.getElementById('resultCount').textContent = rows.length + ' vognløp';
+
+  const ukes = currentData.weekly.map(w => w.uke);
+  const maxT = currentData.vognlop[0]?.total || 1;
+
+  const hdrRow = document.querySelector('#mainTable thead tr');
+  const thBase = hdrRow.querySelectorAll('th');
+  thBase[6].colSpan = ukes.length;
+  thBase[6].textContent = 'Avvik per uke';
+  while (hdrRow.children.length > 7) hdrRow.removeChild(hdrRow.lastChild);
+  ukes.forEach(u => {
+    const th = document.createElement('th');
+    th.textContent = 'U' + u;
+    th.style.textAlign = 'center';
+    hdrRow.appendChild(th);
+  });
+  thBase[6].style.display = 'none';
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  rows.forEach((v, i) => {
+    const pct = Math.round(v.trykkefeil / v.total * 100);
+    const intensity = Math.round(v.total / maxT * 5);
+    const blueScale = ['#f8f9fb','#e8f0fb','#cfe0f8','#b5d0f5','#8ab8f0','#5ba3f5'];
+    const tr = document.createElement('tr');
+    let cells = `
+      <td class="rank-cell">${i+1}</td>
+      <td style="font-weight:600">${v.vognlop}</td>
+      <td class="total-cell" style="background:${blueScale[intensity]};font-weight:700">${v.total}</td>
+      <td><span class="pill pill-blue">${v.trykkefeil}</span></td>
+      <td><span class="pill pill-amber">${v.mangler}</span></td>
+      <td style="text-align:center;color:#6a7a8a">${pct}%</td>`;
+    ukes.forEach(u => {
+      const cnt = v.per_uke[String(u)] || 0;
+      const dotBg = cnt === 0 ? '#f0f0f0' : cnt === 1 ? '#ddeeff' : cnt <= 2 ? '#5ba3f5' : cnt <= 3 ? '#2e7dd1' : '#1a5ca8';
+      const dotColor = cnt >= 2 ? '#fff' : '#1a2d4a';
+      cells += `<td class="week-cell"><span class="week-dot" style="background:${dotBg};color:${dotColor}">${cnt || ''}</span></td>`;
+    });
+    tr.innerHTML = cells;
+    tbody.appendChild(tr);
+  });
+}
+
+init();
+</script>
+</body>
+</html>
